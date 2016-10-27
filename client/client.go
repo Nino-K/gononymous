@@ -46,7 +46,6 @@ func main() {
 			fmt.Println("write:", err)
 			return
 		}
-		time.Sleep(time.Second * 5)
 	}
 
 }

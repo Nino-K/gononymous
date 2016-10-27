@@ -15,8 +15,10 @@ type Server struct {
 }
 
 func New() *Server {
+	SessionManager := NewSessionManager()
+	go SessionManager.Signal()
 	return &Server{
-		NewSessionManager(),
+		SessionManager,
 		websocket.Upgrader{},
 	}
 }
@@ -28,16 +30,19 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	err = s.Register(sessionHandle, "change_me", conn)
+	clientId := r.Header.Get("CLIENT_ID")
+	fmt.Println(clientId, "CONNECTED")
+	peer := NewPeer(clientId, conn)
+	err = s.Register(sessionHandle, peer)
 	if err != nil {
 		fmt.Println("error")
 		panic(err)
 	}
+	//TODO: go peer read and go peer write
 
-	fmt.Println(s.Clients(sessionHandle))
-	fmt.Println(len(s.Clients(sessionHandle)))
 	conn.WriteMessage(websocket.BinaryMessage, []byte("called Home"+sessionHandle))
 
+	peer.Listen()
 }
 
 func sessionHandle(url *url.URL) string {

@@ -3,51 +3,70 @@ package server
 import (
 	"fmt"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
-type Client struct {
-	Id   string
-	Conn *websocket.Conn
-}
-
 type SessionManager struct {
-	clients     map[string][]Client
-	clientsLock sync.Mutex
+	peers     map[string][]*Peer
+	peersLock sync.Mutex
+	signal    chan string
 }
 
 func NewSessionManager() *SessionManager {
 	return &SessionManager{
-		clients: make(map[string][]Client),
+		peers:  make(map[string][]*Peer),
+		signal: make(chan string),
 	}
 }
 
-func (s *SessionManager) Register(sessionHandle string, clientId string, conn *websocket.Conn) error {
+// this is going to send a signal to peer.Signal chan also
+func (s *SessionManager) Register(sessionHandle string, p *Peer) error {
 	if sessionHandle == "" {
 		return fmt.Errorf("Register: sessionHandle can not be empty")
 	}
-	if clientId == "" {
-		return fmt.Errorf("Register: clientId can not be empty")
-	}
-	s.clientsLock.Lock()
-	defer s.clientsLock.Unlock()
-	clients, exist := s.clients[sessionHandle]
+	s.peersLock.Lock()
+	defer s.peersLock.Unlock()
+	peers, exist := s.peers[sessionHandle]
 	if !exist {
-		s.clients[sessionHandle] = []Client{Client{Id: clientId, Conn: conn}}
+		s.peers[sessionHandle] = []*Peer{p}
 		return nil
 	}
-	for _, client := range clients {
-		if clientId != client.Id {
-			clients = append(clients, Client{Id: clientId, Conn: conn})
+	for i, peer := range peers {
+		// if the peer found, update it's connection
+		if p.Id == peer.Id {
+			peers = append(peers[:i], peers[i+1:]...)
 		}
+		peers = append(peers, p)
 	}
-	s.clients[sessionHandle] = clients
+	s.peers[sessionHandle] = peers
+	s.signal <- sessionHandle
 	return nil
 }
 
-func (s *SessionManager) Clients(sessionHandle string) []Client {
-	s.clientsLock.Lock()
-	defer s.clientsLock.Unlock()
-	return s.clients[sessionHandle]
+func (s *SessionManager) Signal() {
+	for {
+		select {
+		case sessionHandle := <-s.signal:
+			peers, exist := s.peers[sessionHandle]
+			if exist && len(peers) > 1 {
+				for _, p := range peers {
+					s.notify(p, peers)
+				}
+			}
+
+		}
+	}
+}
+
+func (s *SessionManager) notify(peer *Peer, peers []*Peer) {
+	for _, p := range peers {
+		if p.Id != peer.Id {
+			p.Connect(peer)
+		}
+	}
+}
+
+func (s *SessionManager) Peers(sessionHandle string) []*Peer {
+	s.peersLock.Lock()
+	defer s.peersLock.Unlock()
+	return s.peers[sessionHandle]
 }
