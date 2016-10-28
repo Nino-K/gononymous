@@ -15,10 +15,8 @@ type Server struct {
 }
 
 func New() *Server {
-	SessionManager := NewSessionManager()
-	go SessionManager.Signal()
 	return &Server{
-		SessionManager,
+		NewSessionManager(),
 		websocket.Upgrader{},
 	}
 }

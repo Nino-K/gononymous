@@ -8,14 +8,16 @@ import (
 type SessionManager struct {
 	peers     map[string][]*Peer
 	peersLock sync.Mutex
-	signal    chan string
+	signals   chan string
 }
 
 func NewSessionManager() *SessionManager {
-	return &SessionManager{
-		peers:  make(map[string][]*Peer),
-		signal: make(chan string),
+	sm := &SessionManager{
+		peers:   make(map[string][]*Peer),
+		signals: make(chan string),
 	}
+	go sm.signal()
+	return sm
 }
 
 // this is going to send a signal to peer.Signal chan also
@@ -38,14 +40,14 @@ func (s *SessionManager) Register(sessionHandle string, p *Peer) error {
 		peers = append(peers, p)
 	}
 	s.peers[sessionHandle] = peers
-	s.signal <- sessionHandle
+	s.signals <- sessionHandle
 	return nil
 }
 
-func (s *SessionManager) Signal() {
+func (s *SessionManager) signal() {
 	for {
 		select {
-		case sessionHandle := <-s.signal:
+		case sessionHandle := <-s.signals:
 			peers, exist := s.peers[sessionHandle]
 			if exist && len(peers) > 1 {
 				for _, p := range peers {

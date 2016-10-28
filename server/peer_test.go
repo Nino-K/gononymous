@@ -10,7 +10,7 @@ import (
 )
 
 func TestPeer_listenReadFromConn(t *testing.T) {
-	t.Log("It should read from conn")
+	t.Log("It reads from conn")
 	{
 		expect := expect.New(t)
 
@@ -28,10 +28,6 @@ func TestPeer_listenReadFromConn(t *testing.T) {
 
 		called := <-mockConn.ReadMessageCalled
 		expect(called).To.Equal(true)
-
-		messages := peer.Messages()
-		data := <-messages
-		expect(data).To.Equal([]byte("test stuff"))
 	}
 }
 
@@ -49,6 +45,37 @@ func TestPeer_listenErrorFromConn(t *testing.T) {
 
 		err := peer.Listen()
 		expect(err).Not.To.Be.Nil()
+	}
+}
+
+func TestPeer_write(t *testing.T) {
+	t.Log("It should insert the messages into messages chan")
+	{
+		expect := expect.New(t)
+
+		mockConn := newMockConn()
+		peer := server.NewPeer("testId", mockConn)
+		peer.Write([]byte("some test stuff"))
+		expect(<-peer.Messages()).To.Equal([]byte("some test stuff"))
+	}
+}
+
+func TestPeer_send(t *testing.T) {
+	t.Log("It sends reads from msgs and writes to all connected Peers")
+	{
+		expect := expect.New(t)
+
+		mockConnOne := newMockConn()
+		mockConnTwo := newMockConn()
+
+		peerOne := server.NewPeer("testId", mockConnOne)
+		peerTwo := server.NewPeer("testId2", mockConnTwo)
+
+		peerOne.Connect(peerTwo)
+		peerOne.Write([]byte("some test stuff"))
+		go peerOne.Send()
+
+		expect(<-mockConnTwo.WriteMessageCalled).To.Equal(true)
 	}
 }
 

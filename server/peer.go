@@ -1,6 +1,10 @@
 package server
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/gorilla/websocket"
+)
 
 //go:generate hel --type Conn --output mock_conn_test.go
 
@@ -9,8 +13,6 @@ type Conn interface {
 	ReadMessage() (int, []byte, error)
 }
 
-// expose a signal chan to pass to sessionManager
-// session manager's register will pass the newly registered peers down signal chan
 type Peer struct {
 	Id             string
 	Conn           Conn
@@ -22,7 +24,7 @@ func NewPeer(id string, conn Conn) *Peer {
 	return &Peer{
 		Id:   id,
 		Conn: conn,
-		msgs: make(chan []byte),
+		msgs: make(chan []byte, 1000),
 	}
 }
 
@@ -35,7 +37,6 @@ func (p *Peer) Listen() error {
 			return err
 		}
 		fmt.Println(string(b))
-		//p.msgs <- b
 	}
 }
 
@@ -56,12 +57,28 @@ func (p *Peer) peerExist(peer *Peer) bool {
 	return false
 }
 
-//TODO Send only upon other client connection
-//func (p *peer) Send(msg []byte) {
-//	for {
-//		select {
-//		case peer := <-p.peers:
-//			peer.Send(msg)
-//		}
-//	}
-//}
+// TODO add write method to the peer
+
+func (p *Peer) Write(msg []byte) {
+	p.msgs <- msg
+}
+
+func (p *Peer) Send() {
+	for {
+		select {
+		case msg := <-p.msgs:
+			p.broadcast(msg)
+		}
+	}
+}
+
+func (p *Peer) broadcast(msg []byte) {
+	for _, peer := range p.connectedPeers {
+		err := peer.Conn.WriteMessage(websocket.BinaryMessage, msg)
+		if err != nil {
+			//TODO: do something smart with this err
+			// perhapes remove peer, retry, etc
+			fmt.Println("something bad happened")
+		}
+	}
+}
