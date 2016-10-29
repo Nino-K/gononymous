@@ -21,16 +21,17 @@ type Peer struct {
 }
 
 func NewPeer(id string, conn Conn) *Peer {
-	return &Peer{
+	peer := &Peer{
 		Id:   id,
 		Conn: conn,
 		msgs: make(chan []byte, 1000),
 	}
+	go peer.Send()
+	return peer
 }
 
 func (p *Peer) Listen() error {
 	for {
-		fmt.Println("connected peers are: ", p.connectedPeers)
 		_, b, err := p.Conn.ReadMessage()
 		if err != nil {
 			fmt.Println(err)
@@ -57,8 +58,6 @@ func (p *Peer) peerExist(peer *Peer) bool {
 	return false
 }
 
-// TODO add write method to the peer
-
 func (p *Peer) Write(msg []byte) {
 	p.msgs <- msg
 }
@@ -73,6 +72,7 @@ func (p *Peer) Send() {
 }
 
 func (p *Peer) broadcast(msg []byte) {
+	fmt.Println("connected peers are: ", p.connectedPeers)
 	for _, peer := range p.connectedPeers {
 		err := peer.Conn.WriteMessage(websocket.BinaryMessage, msg)
 		if err != nil {

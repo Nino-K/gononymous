@@ -76,26 +76,7 @@ func TestPeer_send(t *testing.T) {
 		go peerOne.Send()
 
 		expect(<-mockConnTwo.WriteMessageCalled).To.Equal(true)
+		expect(<-mockConnTwo.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
+		expect(<-mockConnTwo.WriteMessageInput.Data).To.Equal([]byte("some test stuff"))
 	}
 }
-
-func TestPeer_signalConnectedPeers(t *testing.T) {
-	t.Log("Signal notifies other connected Peers")
-	{
-		//TODO
-		t.Skip("need to figure out how to do this signalling thing")
-	}
-}
-
-//func TestPeer_sendWaitForAPeeer(t *testing.T) {
-//	t.Log("It does not send until a new peer connected")
-//	{
-//		expect := expect.New(t)
-//
-//		mockConn := newMockConn()
-//		perr := server.NewPeer("testId", mockConn)
-//
-//		err := peer.Send()
-//		expect(err).Not.To.Be.Nil()
-//	}
-//}

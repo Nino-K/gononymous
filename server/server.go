@@ -38,9 +38,19 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 	}
 	//TODO: go peer read and go peer write
 
-	conn.WriteMessage(websocket.BinaryMessage, []byte("called Home"+sessionHandle))
+	//conn.WriteMessage(websocket.BinaryMessage, []byte("called Home"+sessionHandle))
 
-	peer.Listen()
+	go func() {
+		i := 0
+		for {
+			peer.Write([]byte(fmt.Sprintf("sending %d from %s", i, clientId)))
+			i++
+		}
+	}()
+	err = peer.Listen()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func sessionHandle(url *url.URL) string {
