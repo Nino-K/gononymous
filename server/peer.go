@@ -15,7 +15,7 @@ type Conn interface {
 
 type Peer struct {
 	Id             string
-	Conn           Conn
+	conn           Conn
 	msgs           chan []byte
 	connectedPeers []*Peer
 }
@@ -23,22 +23,25 @@ type Peer struct {
 func NewPeer(id string, conn Conn) *Peer {
 	peer := &Peer{
 		Id:   id,
-		Conn: conn,
+		conn: conn,
 		msgs: make(chan []byte, 1000),
 	}
-	go peer.Send()
+	go peer.send()
 	return peer
 }
 
 func (p *Peer) Listen() error {
 	for {
-		_, b, err := p.Conn.ReadMessage()
+		_, b, err := p.conn.ReadMessage()
 		if err != nil {
 			fmt.Println(err)
 			return err
 		}
 		fmt.Println(string(b))
+		// TODO: pass the b to msgs
+		// so write can read and send to others
 	}
+
 }
 
 func (p *Peer) Messages() chan []byte {
@@ -58,11 +61,18 @@ func (p *Peer) peerExist(peer *Peer) bool {
 	return false
 }
 
+// TODO: simplify all the methods below
+// we might not need direct write if we are going
+// to read from msgs
 func (p *Peer) Write(msg []byte) {
 	p.msgs <- msg
 }
 
-func (p *Peer) Send() {
+func (p *Peer) WritePeer(msgType int, msg []byte) error {
+	return p.conn.WriteMessage(msgType, msg)
+}
+
+func (p *Peer) send() {
 	for {
 		select {
 		case msg := <-p.msgs:
@@ -74,7 +84,7 @@ func (p *Peer) Send() {
 func (p *Peer) broadcast(msg []byte) {
 	fmt.Println("connected peers are: ", p.connectedPeers)
 	for _, peer := range p.connectedPeers {
-		err := peer.Conn.WriteMessage(websocket.BinaryMessage, msg)
+		err := peer.WritePeer(websocket.BinaryMessage, msg)
 		if err != nil {
 			//TODO: do something smart with this err
 			// perhapes remove peer, retry, etc

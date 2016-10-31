@@ -73,10 +73,25 @@ func TestPeer_send(t *testing.T) {
 
 		peerOne.Connect(peerTwo)
 		peerOne.Write([]byte("some test stuff"))
-		go peerOne.Send()
 
 		expect(<-mockConnTwo.WriteMessageCalled).To.Equal(true)
 		expect(<-mockConnTwo.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
 		expect(<-mockConnTwo.WriteMessageInput.Data).To.Equal([]byte("some test stuff"))
+	}
+}
+
+func TestPeer_writePeer(t *testing.T) {
+	t.Log("It calls WriteMessage of conn")
+	{
+		expect := expect.New(t)
+
+		mockConn := newMockConn()
+		mockConn.WriteMessageOutput.Ret0 <- nil
+		peer := server.NewPeer("testId", mockConn)
+		peer.WritePeer(websocket.BinaryMessage, []byte("test Stuff"))
+
+		expect(<-mockConn.WriteMessageCalled).To.Equal(true)
+		expect(<-mockConn.WriteMessageInput.Data).To.Equal([]byte("test Stuff"))
+		expect(<-mockConn.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
 	}
 }
