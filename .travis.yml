@@ -14,3 +14,6 @@ matrix:
   allow_failures:
     - go: tip
 
+install:
+  - go get github.com/gorilla/websocket
+  - go get github.com/a8m/expect
