@@ -49,49 +49,42 @@ func TestPeer_listenErrorFromConn(t *testing.T) {
 }
 
 func TestPeer_write(t *testing.T) {
-	t.Log("It should insert the messages into messages chan")
-	{
-		expect := expect.New(t)
-
-		mockConn := newMockConn()
-		peer := server.NewPeer("testId", mockConn)
-		peer.Write([]byte("some test stuff"))
-		expect(<-peer.Messages()).To.Equal([]byte("some test stuff"))
-	}
-}
-
-func TestPeer_send(t *testing.T) {
-	t.Log("It sends reads from msgs and writes to all connected Peers")
-	{
-		expect := expect.New(t)
-
-		mockConnOne := newMockConn()
-		mockConnTwo := newMockConn()
-
-		peerOne := server.NewPeer("testId", mockConnOne)
-		peerTwo := server.NewPeer("testId2", mockConnTwo)
-
-		peerOne.Connect(peerTwo)
-		peerOne.Write([]byte("some test stuff"))
-
-		expect(<-mockConnTwo.WriteMessageCalled).To.Equal(true)
-		expect(<-mockConnTwo.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
-		expect(<-mockConnTwo.WriteMessageInput.Data).To.Equal([]byte("some test stuff"))
-	}
-}
-
-func TestPeer_writePeer(t *testing.T) {
-	t.Log("It calls WriteMessage of conn")
+	t.Log("It calls conn WriteMessage")
 	{
 		expect := expect.New(t)
 
 		mockConn := newMockConn()
 		mockConn.WriteMessageOutput.Ret0 <- nil
 		peer := server.NewPeer("testId", mockConn)
-		peer.WritePeer(websocket.BinaryMessage, []byte("test Stuff"))
-
+		peer.Write(websocket.BinaryMessage, []byte("some test stuff"))
 		expect(<-mockConn.WriteMessageCalled).To.Equal(true)
-		expect(<-mockConn.WriteMessageInput.Data).To.Equal([]byte("test Stuff"))
+		expect(<-mockConn.WriteMessageInput.Data).To.Equal([]byte("some test stuff"))
 		expect(<-mockConn.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
+	}
+}
+
+func TestPeer_send(t *testing.T) {
+	t.Log("It reads from msgs and writes to all connected Peers")
+	{
+		expect := expect.New(t)
+
+		mockConnOne := newMockConn()
+		mockConnOne.WriteMessageOutput.Ret0 <- nil
+		mockConnTwo := newMockConn()
+
+		peerOne := server.NewPeer("testId", mockConnOne)
+		peerTwo := server.NewPeer("testId2", mockConnTwo)
+
+		go peerOne.Listen()
+
+		mockConnOne.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
+		mockConnOne.ReadMessageOutput.Ret1 <- []byte("some stuff")
+		mockConnOne.ReadMessageOutput.Ret2 <- nil
+
+		peerOne.Connect(peerTwo)
+
+		expect(<-mockConnTwo.WriteMessageCalled).To.Equal(true)
+		expect(<-mockConnTwo.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
+		expect(<-mockConnTwo.WriteMessageInput.Data).To.Equal([]byte("some stuff"))
 	}
 }

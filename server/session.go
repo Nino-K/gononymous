@@ -40,6 +40,7 @@ func (s *SessionManager) Register(sessionHandle string, p *Peer) error {
 		peers = append(peers, p)
 	}
 	s.peers[sessionHandle] = peers
+
 	s.signals <- sessionHandle
 	return nil
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -14,10 +15,11 @@ type Conn interface {
 }
 
 type Peer struct {
-	Id             string
-	conn           Conn
-	msgs           chan []byte
-	connectedPeers []*Peer
+	Id                string
+	conn              Conn
+	msgs              chan []byte
+	connectedPeers    []*Peer
+	connectedPeersMux sync.Mutex
 }
 
 func NewPeer(id string, conn Conn) *Peer {
@@ -37,38 +39,21 @@ func (p *Peer) Listen() error {
 			fmt.Println(err)
 			return err
 		}
-		fmt.Println(string(b))
-		// TODO: pass the b to msgs
-		// so write can read and send to others
+		//fmt.Println(string(b))
+		p.msgs <- b
 	}
 
 }
 
-func (p *Peer) Messages() chan []byte {
-	return p.msgs
-}
-
 func (p *Peer) Connect(peer *Peer) {
+	p.connectedPeersMux.Lock()
+	defer p.connectedPeersMux.Unlock()
 	if !p.peerExist(peer) {
 		p.connectedPeers = append(p.connectedPeers, peer)
 	}
 }
 
-func (p *Peer) peerExist(peer *Peer) bool {
-	for _, p := range p.connectedPeers {
-		return p.Id == peer.Id
-	}
-	return false
-}
-
-// TODO: simplify all the methods below
-// we might not need direct write if we are going
-// to read from msgs
-func (p *Peer) Write(msg []byte) {
-	p.msgs <- msg
-}
-
-func (p *Peer) WritePeer(msgType int, msg []byte) error {
+func (p *Peer) Write(msgType int, msg []byte) error {
 	return p.conn.WriteMessage(msgType, msg)
 }
 
@@ -82,13 +67,22 @@ func (p *Peer) send() {
 }
 
 func (p *Peer) broadcast(msg []byte) {
+	p.connectedPeersMux.Lock()
+	defer p.connectedPeersMux.Unlock()
 	fmt.Println("connected peers are: ", p.connectedPeers)
 	for _, peer := range p.connectedPeers {
-		err := peer.WritePeer(websocket.BinaryMessage, msg)
+		err := peer.Write(websocket.BinaryMessage, msg)
 		if err != nil {
 			//TODO: do something smart with this err
 			// perhapes remove peer, retry, etc
 			fmt.Println("something bad happened")
 		}
 	}
+}
+
+func (p *Peer) peerExist(peer *Peer) bool {
+	for _, p := range p.connectedPeers {
+		return p.Id == peer.Id
+	}
+	return false
 }
