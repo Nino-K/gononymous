@@ -9,7 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func TestSession_emptySessionHandle(t *testing.T) {
+func TestSession_registerEmptySessionHandle(t *testing.T) {
 	t.Log("It returns an error if given an empty sessionHandle")
 	{
 		expect := expect.New(t)
@@ -101,9 +101,43 @@ func TestSession_multiplePeers(t *testing.T) {
 	}
 }
 
-func TestSession_registerSignalsOtherPeers(t *testing.T) {
-	// TODO
-	t.Skip("need to do some mocking for this one")
+func TestSession_unregisterError(t *testing.T) {
+	t.Log("It returns an error if")
+	{
+		expect := expect.New(t)
+
+		session := server.NewSessionManager()
+
+		t.Log("given an empty sessionHandle")
+		err := session.Unregister("", "someClientID")
+		expect(err).Not.To.Be.Nil()
+
+		t.Log("given an empty clientID")
+		err = session.Unregister("sessionId", "")
+		expect(err).Not.To.Be.Nil()
+	}
+}
+
+func TestSession_unregister(t *testing.T) {
+	t.Log("It removes the peer from connectedPeers")
+	{
+		expect := expect.New(t)
+
+		sessionHandle := testURL().Path
+		peerConn1 := &websocket.Conn{}
+		peerOne := server.NewPeer("fakepeerID1", peerConn1)
+		peerConn2 := &websocket.Conn{}
+		peerTwo := server.NewPeer("fakepeerID2", peerConn2)
+		session := server.NewSessionManager()
+		session.Register(sessionHandle, peerOne)
+		session.Register(sessionHandle, peerTwo)
+		session.Unregister(sessionHandle, "fakepeerID1")
+
+		expectedpeers := []*server.Peer{peerTwo}
+
+		expect(session.Peers(sessionHandle)).To.Have.Len(1)
+		expect(session.Peers(sessionHandle)).To.Equal(expectedpeers)
+	}
 }
 
 func testURL() url.URL {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,19 +28,24 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+	defer func() {
+		conn.WriteControl(websocket.CloseAbnormalClosure, nil, time.Time{})
+	}()
 
 	clientId := r.Header.Get("CLIENT_ID")
 	fmt.Println(clientId, "CONNECTED")
 	peer := NewPeer(clientId, conn)
 	err = s.Register(sessionHandle, peer)
 	if err != nil {
-		fmt.Println("error")
 		panic(err)
 	}
 
 	err = peer.Listen()
 	if err != nil {
-		fmt.Errorf("Home Handler: %v", err)
+		s.Unregister(sessionHandle, clientId)
+		// remove all cached instances of this peer, signal other peers
+		//TODO: add s.Unregister and signal peers if err is EOF
+		fmt.Println("Home Handler: %v", err)
 		return
 	}
 }

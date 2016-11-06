@@ -33,16 +33,17 @@ func NewPeer(id string, conn Conn) *Peer {
 }
 
 func (p *Peer) Listen() error {
+	var b []byte
+	var err error
 	for {
-		_, b, err := p.conn.ReadMessage()
+		_, b, err = p.conn.ReadMessage()
 		if err != nil {
-			fmt.Println(err)
-			return err
+			break
 		}
 		//fmt.Println(string(b))
 		p.msgs <- b
 	}
-
+	return err
 }
 
 func (p *Peer) Connect(peer *Peer) {
@@ -75,7 +76,7 @@ func (p *Peer) broadcast(msg []byte) {
 		if err != nil {
 			//TODO: do something smart with this err
 			// perhapes remove peer, retry, etc
-			fmt.Println("something bad happened")
+			fmt.Println("something bad happened", err)
 		}
 	}
 }

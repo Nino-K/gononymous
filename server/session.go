@@ -45,6 +45,33 @@ func (s *SessionManager) Register(sessionHandle string, p *Peer) error {
 	return nil
 }
 
+func (s *SessionManager) Unregister(sessionHandle, peerId string) error {
+	if sessionHandle == "" {
+		return fmt.Errorf("Unregistr: sessionHandle can not be empty")
+	}
+	if peerId == "" {
+		return fmt.Errorf("Unregister: peerId can not be empty")
+	}
+	s.peersLock.Lock()
+	defer s.peersLock.Unlock()
+	peers, exist := s.peers[sessionHandle]
+	if exist {
+		for i, peer := range peers {
+			if peer.Id == peerId {
+				peers = append(peers[:i], peers[i+1:]...)
+			}
+		}
+		s.peers[sessionHandle] = peers
+	}
+	return nil
+}
+
+func (s *SessionManager) Peers(sessionHandle string) []*Peer {
+	s.peersLock.Lock()
+	defer s.peersLock.Unlock()
+	return s.peers[sessionHandle]
+}
+
 func (s *SessionManager) signal() {
 	for {
 		select {
@@ -66,10 +93,4 @@ func (s *SessionManager) notify(peer *Peer, peers []*Peer) {
 			p.Connect(peer)
 		}
 	}
-}
-
-func (s *SessionManager) Peers(sessionHandle string) []*Peer {
-	s.peersLock.Lock()
-	defer s.peersLock.Unlock()
-	return s.peers[sessionHandle]
 }
