@@ -6,9 +6,9 @@ import (
 )
 
 type SessionManager struct {
-	peers     map[string][]*Peer
-	peersLock sync.Mutex
-	signals   chan string
+	peers    map[string][]*Peer
+	peersMux sync.RWMutex
+	signals  chan string
 }
 
 func NewSessionManager() *SessionManager {
@@ -25,8 +25,8 @@ func (s *SessionManager) Register(sessionHandle string, p *Peer) error {
 	if sessionHandle == "" {
 		return fmt.Errorf("Register: sessionHandle can not be empty")
 	}
-	s.peersLock.Lock()
-	defer s.peersLock.Unlock()
+	s.peersMux.Lock()
+	defer s.peersMux.Unlock()
 	peers, exist := s.peers[sessionHandle]
 	if !exist {
 		s.peers[sessionHandle] = []*Peer{p}
@@ -52,8 +52,8 @@ func (s *SessionManager) Unregister(sessionHandle, peerId string) error {
 	if peerId == "" {
 		return fmt.Errorf("Unregister: peerId can not be empty")
 	}
-	s.peersLock.Lock()
-	defer s.peersLock.Unlock()
+	s.peersMux.Lock()
+	defer s.peersMux.Unlock()
 	peers, exist := s.peers[sessionHandle]
 	if exist {
 		for i, peer := range peers {
@@ -67,8 +67,8 @@ func (s *SessionManager) Unregister(sessionHandle, peerId string) error {
 }
 
 func (s *SessionManager) Peers(sessionHandle string) []*Peer {
-	s.peersLock.Lock()
-	defer s.peersLock.Unlock()
+	s.peersMux.RLock()
+	defer s.peersMux.RUnlock()
 	return s.peers[sessionHandle]
 }
 
@@ -76,13 +76,14 @@ func (s *SessionManager) signal() {
 	for {
 		select {
 		case sessionHandle := <-s.signals:
+			s.peersMux.RLock()
 			peers, exist := s.peers[sessionHandle]
 			if exist && len(peers) > 1 {
 				for _, p := range peers {
 					s.notify(p, peers)
 				}
 			}
-
+			s.peersMux.RUnlock()
 		}
 	}
 }
