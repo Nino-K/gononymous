@@ -52,12 +52,13 @@ func (s *SessionManager) Register(sessionHandle string, p *Peer) error {
 	}
 	peers = append(peers, p)
 	s.peers[sessionHandle] = peers
-
+	fmt.Println("about to send signal")
 	s.register <- signal{
 		code:          connect,
 		sessionHandle: sessionHandle,
 		clientId:      p.Id,
 	}
+	fmt.Printf("total %d registered for session %s", len(peers), sessionHandle)
 	return nil
 }
 

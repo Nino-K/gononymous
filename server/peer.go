@@ -20,13 +20,15 @@ type Peer struct {
 	msgs              chan []byte
 	connectedPeers    []*Peer
 	connectedPeersMux sync.Mutex
+	close             chan struct{}
 }
 
 func NewPeer(id string, conn Conn) *Peer {
 	peer := &Peer{
-		Id:   id,
-		conn: conn,
-		msgs: make(chan []byte, 1000),
+		Id:    id,
+		conn:  conn,
+		msgs:  make(chan []byte, 1000),
+		close: make(chan struct{}),
 	}
 	go peer.send()
 	return peer
@@ -58,6 +60,7 @@ func (p *Peer) Connect(peer *Peer) {
 //expose a method that returns p.connected peers
 //and test this
 func (p *Peer) Disconnect(peerId string) {
+	p.close <- struct{}{}
 	fmt.Println("going to remove", peerId, "own peer id is", p.Id)
 	p.connectedPeersMux.Lock()
 	defer p.connectedPeersMux.Unlock()
@@ -73,12 +76,17 @@ func (p *Peer) Write(msgType int, msg []byte) error {
 }
 
 func (p *Peer) send() {
+sendLoop:
 	for {
 		select {
 		case msg := <-p.msgs:
 			p.broadcast(msg)
+		case <-p.close:
+			fmt.Println("recieved close sig")
+			break sendLoop
 		}
 	}
+	fmt.Println("going to exit")
 }
 
 // update the connected peers
