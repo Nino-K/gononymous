@@ -40,7 +40,7 @@ func TestSession_successfullyRegistered(t *testing.T) {
 	}
 }
 
-func TestSession_alreayRegisteredpeer(t *testing.T) {
+func TestSession_alreayRegisteredPeer(t *testing.T) {
 	t.Log("It should not add already registered peer")
 	{
 		expect := expect.New(t)

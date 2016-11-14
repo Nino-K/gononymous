@@ -42,6 +42,7 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) {
 
 	err = peer.Listen()
 	if err != nil {
+		conn.Close()
 		s.Unregister(sessionHandle, clientId)
 		// remove all cached instances of this peer, signal other peers
 		//TODO: add s.Unregister and signal peers if err is EOF

@@ -88,3 +88,22 @@ func TestPeer_send(t *testing.T) {
 		expect(<-mockConnTwo.WriteMessageInput.Data).To.Equal([]byte("some stuff"))
 	}
 }
+
+func TestPeer_disconnect(t *testing.T) {
+	t.Log("should remove from connected peers")
+	{
+		expect := expect.New(t)
+
+		mockConnOne := newMockConn()
+		mockConnTwo := newMockConn()
+
+		peerOne := server.NewPeer("testId", mockConnOne)
+		peerTwo := server.NewPeer("testId2", mockConnTwo)
+
+		peerOne.Connect(peerTwo)
+		expect(len(peerOne.Peers())).To.Equal(1)
+
+		peerOne.Disconnect("testId2")
+		expect(len(peerOne.Peers())).To.Equal(0)
+	}
+}

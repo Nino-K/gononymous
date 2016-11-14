@@ -54,6 +54,20 @@ func (p *Peer) Connect(peer *Peer) {
 	}
 }
 
+//TODO: this thing is behaving so odd
+//expose a method that returns p.connected peers
+//and test this
+func (p *Peer) Disconnect(peerId string) {
+	fmt.Println("going to remove", peerId, "own peer id is", p.Id)
+	p.connectedPeersMux.Lock()
+	defer p.connectedPeersMux.Unlock()
+	for i := len(p.connectedPeers) - 1; i >= 0; i-- {
+		if p.connectedPeers[i].Id == peerId {
+			p.connectedPeers = append(p.connectedPeers[:i], p.connectedPeers[i+1:]...)
+		}
+	}
+}
+
 func (p *Peer) Write(msgType int, msg []byte) error {
 	return p.conn.WriteMessage(msgType, msg)
 }
@@ -67,18 +81,25 @@ func (p *Peer) send() {
 	}
 }
 
+// update the connected peers
 func (p *Peer) broadcast(msg []byte) {
 	p.connectedPeersMux.Lock()
 	defer p.connectedPeersMux.Unlock()
 	fmt.Println("connected peers are: ", p.connectedPeers)
+	fmt.Println("connected peers total len: ", len(p.connectedPeers))
 	for _, peer := range p.connectedPeers {
 		err := peer.Write(websocket.BinaryMessage, msg)
 		if err != nil {
-			//TODO: do something smart with this err
-			// perhapes remove peer, retry, etc
 			fmt.Println("something bad happened", err)
+
 		}
 	}
+}
+
+func (p *Peer) Peers() []*Peer {
+	p.connectedPeersMux.Lock()
+	defer p.connectedPeersMux.Unlock()
+	return p.connectedPeers
 }
 
 func (p *Peer) peerExist(peer *Peer) bool {
