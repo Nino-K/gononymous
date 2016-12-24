@@ -3,44 +3,44 @@
 // doing.  Expect any changes made manually to be overwritten
 // the next time hel regenerates this file.
 
-package server_test
+package server
 
 type mockConn struct {
-	WriteMessageCalled chan bool
-	WriteMessageInput  struct {
-		MsgType chan int
-		Data    chan []byte
-	}
-	WriteMessageOutput struct {
-		Ret0 chan error
-	}
 	ReadMessageCalled chan bool
 	ReadMessageOutput struct {
 		Ret0 chan int
 		Ret1 chan []byte
 		Ret2 chan error
 	}
+	WriteMessageCalled chan bool
+	WriteMessageInput  struct {
+		Arg0 chan int
+		Arg1 chan []byte
+	}
+	WriteMessageOutput struct {
+		Ret0 chan error
+	}
 }
 
 func newMockConn() *mockConn {
 	m := &mockConn{}
-	m.WriteMessageCalled = make(chan bool, 100)
-	m.WriteMessageInput.MsgType = make(chan int, 100)
-	m.WriteMessageInput.Data = make(chan []byte, 100)
-	m.WriteMessageOutput.Ret0 = make(chan error, 100)
 	m.ReadMessageCalled = make(chan bool, 100)
 	m.ReadMessageOutput.Ret0 = make(chan int, 100)
 	m.ReadMessageOutput.Ret1 = make(chan []byte, 100)
 	m.ReadMessageOutput.Ret2 = make(chan error, 100)
+	m.WriteMessageCalled = make(chan bool, 100)
+	m.WriteMessageInput.Arg0 = make(chan int, 100)
+	m.WriteMessageInput.Arg1 = make(chan []byte, 100)
+	m.WriteMessageOutput.Ret0 = make(chan error, 100)
 	return m
-}
-func (m *mockConn) WriteMessage(msgType int, data []byte) error {
-	m.WriteMessageCalled <- true
-	m.WriteMessageInput.MsgType <- msgType
-	m.WriteMessageInput.Data <- data
-	return <-m.WriteMessageOutput.Ret0
 }
 func (m *mockConn) ReadMessage() (int, []byte, error) {
 	m.ReadMessageCalled <- true
 	return <-m.ReadMessageOutput.Ret0, <-m.ReadMessageOutput.Ret1, <-m.ReadMessageOutput.Ret2
+}
+func (m *mockConn) WriteMessage(arg0 int, arg1 []byte) error {
+	m.WriteMessageCalled <- true
+	m.WriteMessageInput.Arg0 <- arg0
+	m.WriteMessageInput.Arg1 <- arg1
+	return <-m.WriteMessageOutput.Ret0
 }

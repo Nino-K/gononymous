@@ -1,109 +1,147 @@
-package server_test
+package server
 
 import (
 	"errors"
-	"testing"
 
-	"github.com/Nino-K/gononymous/server"
-	"github.com/a8m/expect"
 	"github.com/gorilla/websocket"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-func TestPeer_listenReadFromConn(t *testing.T) {
-	t.Log("It reads from conn")
-	{
-		expect := expect.New(t)
+var _ = Describe("Peer", func() {
+	Describe("Listen", func() {
+		It("places the incoming messages into message chan", func() {
+			fakeCon := newMockConn()
+			fakeCon.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
+			fakeCon.ReadMessageOutput.Ret1 <- []byte("test content")
+			fakeCon.ReadMessageOutput.Ret2 <- nil
 
-		mockConn := newMockConn()
-		mockConn.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
-		mockConn.ReadMessageOutput.Ret1 <- []byte("test stuff")
-		mockConn.ReadMessageOutput.Ret2 <- nil
+			peer := NewPeer("testId", fakeCon)
+			go peer.Listen()
 
-		peer := server.NewPeer("testId", mockConn)
+			var msg message
+			Eventually(peer.msg).Should(Receive(&msg))
+			Expect(msg.content).To(Equal([]byte("test content")))
+			Expect(msg.messageType).To(Equal(websocket.BinaryMessage))
+		})
 
-		go func() {
-			err := peer.Listen()
-			expect(err).To.Be.Nil()
-		}()
+		Context("error", func() {
+			It("does not process the message when error received", func() {
+				fakeCon := newMockConn()
+				fakeCon.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
+				fakeCon.ReadMessageOutput.Ret1 <- []byte("test content")
+				fakeCon.ReadMessageOutput.Ret2 <- errors.New("something went wrong")
 
-		called := <-mockConn.ReadMessageCalled
-		expect(called).To.Equal(true)
-	}
-}
+				peer := NewPeer("testId", fakeCon)
+				go peer.Listen()
 
-func TestPeer_listenErrorFromConn(t *testing.T) {
-	t.Log("It returns immediatly if conn read errors")
-	{
-		expect := expect.New(t)
+				Consistently(peer.msg).ShouldNot(Receive())
+			})
 
-		mockConn := newMockConn()
-		mockConn.ReadMessageOutput.Ret0 <- 0
-		mockConn.ReadMessageOutput.Ret1 <- nil
-		mockConn.ReadMessageOutput.Ret2 <- errors.New("something went wrong")
+			It("does not ignore the next message when error received", func() {
+				fakeCon := newMockConn()
+				fakeCon.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
+				fakeCon.ReadMessageOutput.Ret1 <- []byte("test content")
+				fakeCon.ReadMessageOutput.Ret2 <- errors.New("something went wrong")
 
-		peer := server.NewPeer("testId", mockConn)
+				peer := NewPeer("testId", fakeCon)
+				go peer.Listen()
 
-		err := peer.Listen()
-		expect(err).Not.To.Be.Nil()
-	}
-}
+				Consistently(peer.msg).ShouldNot(Receive())
 
-func TestPeer_write(t *testing.T) {
-	t.Log("It calls conn WriteMessage")
-	{
-		expect := expect.New(t)
+				fakeCon.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
+				fakeCon.ReadMessageOutput.Ret1 <- []byte("test content")
+				fakeCon.ReadMessageOutput.Ret2 <- nil
+				var msg message
+				Eventually(peer.msg).Should(Receive(&msg))
+				Expect(msg.content).To(Equal([]byte("test content")))
+				Expect(msg.messageType).To(Equal(websocket.BinaryMessage))
+			})
 
-		mockConn := newMockConn()
-		mockConn.WriteMessageOutput.Ret0 <- nil
-		peer := server.NewPeer("testId", mockConn)
-		peer.Write(websocket.BinaryMessage, []byte("some test stuff"))
-		expect(<-mockConn.WriteMessageCalled).To.Equal(true)
-		expect(<-mockConn.WriteMessageInput.Data).To.Equal([]byte("some test stuff"))
-		expect(<-mockConn.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
-	}
-}
+		})
 
-func TestPeer_send(t *testing.T) {
-	t.Log("It reads from msgs and writes to all connected Peers")
-	{
-		expect := expect.New(t)
+		Describe("Broadcast", func() {
 
-		mockConnOne := newMockConn()
-		mockConnOne.WriteMessageOutput.Ret0 <- nil
-		mockConnTwo := newMockConn()
+			It("does not write messages to it's own Conn", func() {
+				fakeCon := newMockConn()
+				peer := NewPeer("testId", fakeCon)
 
-		peerOne := server.NewPeer("testId", mockConnOne)
-		peerTwo := server.NewPeer("testId2", mockConnTwo)
+				go peer.Broadcast()
 
-		go peerOne.Listen()
+				peer.msg <- message{
+					messageType: websocket.BinaryMessage,
+					content:     []byte("test message"),
+				}
 
-		mockConnOne.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
-		mockConnOne.ReadMessageOutput.Ret1 <- []byte("some stuff")
-		mockConnOne.ReadMessageOutput.Ret2 <- nil
+				Eventually(fakeCon.WriteMessageInput.Arg0).ShouldNot(Receive())
+				Eventually(fakeCon.WriteMessageInput.Arg1).ShouldNot(Receive())
+			})
 
-		peerOne.Connect(peerTwo)
+			It("writes messages to all Connected Peers", func() {
+				fakeCon := newMockConn()
+				peer := NewPeer("testId", fakeCon)
 
-		expect(<-mockConnTwo.WriteMessageCalled).To.Equal(true)
-		expect(<-mockConnTwo.WriteMessageInput.MsgType).To.Equal(websocket.BinaryMessage)
-		expect(<-mockConnTwo.WriteMessageInput.Data).To.Equal([]byte("some stuff"))
-	}
-}
+				go peer.Broadcast()
 
-func TestPeer_disconnect(t *testing.T) {
-	t.Log("should remove from connected peers")
-	{
-		expect := expect.New(t)
+				fakeCon2 := newMockConn()
+				peer2 := NewPeer("testId2", fakeCon2)
+				peer.Connect(peer2)
 
-		mockConnOne := newMockConn()
-		mockConnTwo := newMockConn()
+				peer.msg <- message{
+					messageType: websocket.BinaryMessage,
+					content:     []byte("test message"),
+				}
 
-		peerOne := server.NewPeer("testId", mockConnOne)
-		peerTwo := server.NewPeer("testId2", mockConnTwo)
+				var msgType int
+				Eventually(fakeCon2.WriteMessageInput.Arg0).Should(Receive(&msgType))
+				Expect(msgType).To(Equal(websocket.BinaryMessage))
 
-		peerOne.Connect(peerTwo)
-		expect(len(peerOne.Peers())).To.Equal(1)
+				var msgContent []byte
+				Eventually(fakeCon2.WriteMessageInput.Arg1).Should(Receive(&msgContent))
+				Expect(msgContent).To(Equal([]byte("test message")))
+			})
 
-		peerOne.Disconnect("testId2")
-		expect(len(peerOne.Peers())).To.Equal(0)
-	}
-}
+			Context("error", func() {
+				It("does not stop reading from msg chan if WriteMessage returns error", func() {
+					fakeCon1 := newMockConn()
+					peer1 := NewPeer("testId1", fakeCon1)
+
+					fakeCon2 := newMockConn()
+					peer2 := NewPeer("testId2", fakeCon2)
+
+					go peer1.Broadcast()
+					peer1.Connect(peer2)
+
+					fakeCon2.WriteMessageOutput.Ret0 <- errors.New("something went wrong while writing")
+
+					peer1.msg <- message{
+						messageType: websocket.BinaryMessage,
+						content:     []byte("test message one"),
+					}
+
+					Expect(<-fakeCon2.WriteMessageCalled).To(BeTrue())
+
+					//drain the 1st message
+					<-fakeCon2.WriteMessageInput.Arg0
+					<-fakeCon2.WriteMessageInput.Arg1
+
+					go func() {
+						peer1.msg <- message{
+							messageType: websocket.BinaryMessage,
+							content:     []byte("test message"),
+						}
+					}()
+
+					var msgType int
+					Eventually(fakeCon2.WriteMessageInput.Arg0).Should(Receive(&msgType))
+					Expect(msgType).To(Equal(websocket.BinaryMessage))
+
+					var msgContent []byte
+					Eventually(fakeCon2.WriteMessageInput.Arg1).Should(Receive(&msgContent))
+					Expect(msgContent).To(Equal([]byte("test message")))
+				})
+			})
+		})
+	})
+})
