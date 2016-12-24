@@ -31,7 +31,6 @@ func (s *SessionManager) Unregister(session Session) {
 func (s *SessionManager) run() {
 	sessions := make(map[string][]*Peer)
 	for {
-		fmt.Printf("%#v \n", sessions)
 		select {
 		case session := <-s.register:
 			fmt.Println(session.Id)
@@ -45,6 +44,17 @@ func (s *SessionManager) run() {
 			}
 			peers = append(peers, session.Peer)
 			sessions[session.Id] = peers
+			notifyPeers(peers)
+			fmt.Println("notified all peers")
+		}
+		fmt.Printf("%#v \n", sessions)
+	}
+}
+
+func notifyPeers(peers []*Peer) {
+	for _, p := range peers {
+		for _, eachPeer := range peers {
+			p.Connect(eachPeer)
 		}
 	}
 }
