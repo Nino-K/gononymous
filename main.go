@@ -18,17 +18,18 @@ func join(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Fatalf("websocket Upgrade: %s\n", err)
+		return
 	}
 
 	peerId := r.Header.Get("CLIENT_ID")
 	peer := server.NewPeer(peerId, conn)
-	go peer.Listen()
-	go peer.Broadcast()
 	newSession := server.Session{
 		Id:   sessionId(r.URL),
 		Peer: peer,
 	}
 	sessonManager.Register(newSession)
+	go peer.Listen()
+	go peer.Broadcast()
 }
 
 func main() {

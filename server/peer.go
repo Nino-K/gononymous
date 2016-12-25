@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"os"
+
+	"github.com/gorilla/websocket"
 )
 
 //go:generate hel --type Conn --output mock_conn_test.go
@@ -18,34 +20,35 @@ type message struct {
 }
 
 type Peer struct {
-	Id             string
-	Conn           Conn
-	msg            chan message
-	connectedPeers chan *Peer
+	Id           string
+	Conn         Conn
+	msg          chan message
+	connectPeers chan *Peer
 }
 
 func NewPeer(id string, conn Conn) *Peer {
 	return &Peer{
-		Id:             id,
-		Conn:           conn,
-		msg:            make(chan message),
-		connectedPeers: make(chan *Peer),
+		Id:           id,
+		Conn:         conn,
+		msg:          make(chan message),
+		connectPeers: make(chan *Peer),
 	}
 }
 
 func (p *Peer) Listen() {
 	for {
 		mt, content, err := p.Conn.ReadMessage()
-		if err != nil {
-			//TODO: how are we going to deal with this error
-			fmt.Fprintf(os.Stderr, "Listen: %s\n", err)
-			continue
+		if e, ok := err.(*websocket.CloseError); ok {
+			if e.Code == websocket.CloseAbnormalClosure {
+				fmt.Fprintf(os.Stderr, "Listen is stopped: %s\n", err)
+				return
+			}
 		}
 		p.msg <- message{messageType: mt, content: content}
 	}
 }
 
-func (p *Peer) Broadcast() {
+func (p *Peer) Broadcast() error {
 	var peers []*Peer
 	for {
 		select {
@@ -53,17 +56,16 @@ func (p *Peer) Broadcast() {
 			for _, peer := range peers {
 				err := peer.Conn.WriteMessage(msg.messageType, msg.content)
 				if err != nil {
-					//TODO: how are we going to deal with this error
-					fmt.Fprintf(os.Stderr, "Broadcast to %s failed: %s\n", peer.Id, err)
-					continue
+					return err
 				}
 			}
-		case peer := <-p.connectedPeers:
+		case peer := <-p.connectPeers:
 			peers = append(peers, peer)
 		}
 	}
+	return nil
 }
 
 func (p *Peer) Connect(peer *Peer) {
-	p.connectedPeers <- peer
+	p.connectPeers <- peer
 }

@@ -44,18 +44,19 @@ func (s *SessionManager) run() {
 			}
 			peers = append(peers, session.Peer)
 			sessions[session.Id] = peers
-			notifyPeers(peers)
+			notifyPeers(peers, session.Peer)
 			fmt.Println("notified all peers")
 		}
 		fmt.Printf("%#v \n", sessions)
 	}
 }
 
-func notifyPeers(peers []*Peer) {
+func notifyPeers(peers []*Peer, peer *Peer) {
 	for _, p := range peers {
-		for _, eachPeer := range peers {
-			p.Connect(eachPeer)
-		}
+		// let others know about the new peer
+		p.Connect(peer)
+		// let the new peer know about others
+		peer.Connect(p)
 	}
 }
 
