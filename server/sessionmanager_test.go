@@ -16,22 +16,4 @@ var _ = Describe("Sessionmanager", func() {
 			Expect(peerExist(peers, "id2")).To(BeTrue())
 		})
 	})
-	Describe("run", func() {
-		It("connects the newly added peer to all existing peers", func() {
-			sm := NewSessionManager()
-
-			session1 := Session{
-				Id:   "session1",
-				Peer: NewPeer("client1", nil),
-			}
-			sm.Register(session1)
-
-			session2 := Session{
-				Id:   "session1",
-				Peer: NewPeer("client1", nil),
-			}
-			sm.Register(session2)
-
-		})
-	})
 })

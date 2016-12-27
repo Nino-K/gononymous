@@ -1,11 +1,14 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/gorilla/websocket"
 )
+
+var PeerStopErr = errors.New("Peer is existing")
 
 //go:generate hel --type Conn --output mock_conn_test.go
 
@@ -24,6 +27,7 @@ type Peer struct {
 	Conn         Conn
 	msg          chan message
 	connectPeers chan *Peer
+	stop         chan struct{}
 }
 
 func NewPeer(id string, conn Conn) *Peer {
@@ -32,6 +36,7 @@ func NewPeer(id string, conn Conn) *Peer {
 		Conn:         conn,
 		msg:          make(chan message),
 		connectPeers: make(chan *Peer),
+		stop:         make(chan struct{}),
 	}
 }
 
@@ -41,6 +46,7 @@ func (p *Peer) Listen() {
 		if e, ok := err.(*websocket.CloseError); ok {
 			if e.Code == websocket.CloseAbnormalClosure {
 				fmt.Fprintf(os.Stderr, "Listen is stopped: %s\n", err)
+				p.stop <- struct{}{}
 				return
 			}
 		}
@@ -53,14 +59,17 @@ func (p *Peer) Broadcast() error {
 	for {
 		select {
 		case msg := <-p.msg:
-			for _, peer := range peers {
+			for i, peer := range peers {
 				err := peer.Conn.WriteMessage(msg.messageType, msg.content)
+				//TODO: we may want to retry here and then remove that peer
 				if err != nil {
-					return err
+					peers = append(peers[:i], peers[i+1:]...)
 				}
 			}
 		case peer := <-p.connectPeers:
 			peers = append(peers, peer)
+		case <-p.stop:
+			return PeerStopErr
 		}
 	}
 	return nil
