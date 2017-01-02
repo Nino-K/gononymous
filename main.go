@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -33,10 +32,9 @@ func join(w http.ResponseWriter, r *http.Request) {
 	go peer.Listen()
 	err = peer.Broadcast()
 	if err != nil {
-		log.Println("=====================>", err)
+		log.Println(err)
 	}
 	sessonManager.Unregister(newSession)
-	fmt.Println("unregistered")
 }
 
 func main() {

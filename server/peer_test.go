@@ -125,7 +125,8 @@ var _ = Describe("Peer", func() {
 					}()
 					err := peer.Broadcast()
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(PeerStopErr))
+					expectedErr := &PeerStopErr{PeerId: "testId"}
+					Expect(err).To(Equal(expectedErr))
 				})
 
 				It("removes the peer when WriteMessage returns an error", func() {

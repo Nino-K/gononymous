@@ -37,6 +37,7 @@ func (s *SessionManager) run() {
 			peers, exist := sessions[session.Id]
 			if !exist {
 				sessions[session.Id] = []*Peer{session.Peer}
+				log.Printf("%s joined, total peers %+v \n", session.Peer.Id, sessions)
 				continue
 			}
 			if peerExist(peers, session.Peer.Id) {
@@ -45,6 +46,7 @@ func (s *SessionManager) run() {
 			notifyPeers(peers, session.Peer)
 			peers = append(peers, session.Peer)
 			sessions[session.Id] = peers
+			log.Printf("%s joined, total peers %+v \n", session.Peer.Id, sessions)
 		case session := <-s.unregister:
 			peers, exist := sessions[session.Id]
 			if exist {
@@ -53,13 +55,13 @@ func (s *SessionManager) run() {
 						peers = append(peers[:i], peers[i+1:]...)
 					}
 				}
-				if len(peers) > 0 {
-					sessions[session.Id] = peers
+				sessions[session.Id] = peers
+				if len(peers) == 0 {
+					delete(sessions, session.Id)
 				}
 			}
-			log.Printf("%s left\n", session.Peer.Id)
+			log.Printf("%s left, remaining peers %+v \n", session.Peer.Id, sessions)
 		}
-		log.Printf("%#v \n", sessions)
 	}
 }
 

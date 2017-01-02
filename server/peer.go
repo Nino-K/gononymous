@@ -1,14 +1,19 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/gorilla/websocket"
 )
 
-var PeerStopErr = errors.New("Peer is existing")
+type PeerStopErr struct {
+	PeerId string
+}
+
+func (e *PeerStopErr) Error() string {
+	return fmt.Sprintf("%s - has left", e.PeerId)
+}
 
 //go:generate hel --type Conn --output mock_conn_test.go
 
@@ -69,7 +74,7 @@ func (p *Peer) Broadcast() error {
 		case peer := <-p.connectPeers:
 			peers = append(peers, peer)
 		case <-p.stop:
-			return PeerStopErr
+			return &PeerStopErr{PeerId: p.Id}
 		}
 	}
 	return nil
