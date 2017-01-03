@@ -8,15 +8,17 @@ import (
 	"strings"
 
 	"github.com/Nino-K/gononymous/server"
+	"github.com/gorilla/websocket"
 )
 
 //go:generate hel --type Upgrader --output mock_upgrader_test.go
 
 type Upgrader interface {
-	Upgrade(http.ResponseWriter, *http.Request, http.Header) (server.Conn, error)
+	Upgrade(http.ResponseWriter, *http.Request, http.Header) (*websocket.Conn, error)
 }
 
 var peerIdErr = errors.New("CLIENT_ID header must be provided")
+var sessionIDErr = errors.New("sessionId must be provided")
 
 type SessionHandler struct {
 	SessionManager *server.SessionManager
@@ -44,8 +46,14 @@ func (s *SessionHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	peer := server.NewPeer(peerId, conn)
+	sessionId := sessionId(r.URL)
+	if sessionId == "" {
+		http.Error(w, sessionIDErr.Error(), http.StatusBadRequest)
+		log.Printf("Join SessionId: %s \n", sessionIDErr)
+		return
+	}
 	newSession := server.Session{
-		Id:   sessionId(r.URL),
+		Id:   sessionId,
 		Peer: peer,
 	}
 

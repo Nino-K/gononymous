@@ -1,45 +1,20 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/Nino-K/gononymous/handler"
 	"github.com/Nino-K/gononymous/server"
 	"github.com/gorilla/websocket"
 )
 
-var sessonManager *server.SessionManager
-var upgrader = websocket.Upgrader{}
-
-func join(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-
-	if err != nil {
-		log.Fatalf("websocket Upgrade: %s\n", err)
-		return
-	}
-
-	peerId := r.Header.Get("CLIENT_ID")
-	peer := server.NewPeer(peerId, conn)
-	newSession := server.Session{
-		Id:   sessionId(r.URL),
-		Peer: peer,
-	}
-
-	sessonManager.Register(newSession)
-	go peer.Listen()
-	err = peer.Broadcast()
-	if err != nil {
-		log.Println(err)
-	}
-	sessonManager.Unregister(newSession)
-}
-
 func main() {
-	sessonManager = server.NewSessionManager()
-	http.HandleFunc("/", join)
+	upgrader := websocket.Upgrader{}
+	sessonManager := server.NewSessionManager()
+	sessionHandler := handler.NewSessionHandler(sessonManager, &upgrader)
+	http.HandleFunc("/", sessionHandler.Join)
 	http.ListenAndServe("localhost:9988", nil)
 }
 

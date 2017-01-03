@@ -8,7 +8,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/Nino-K/gononymous/server"
+	"github.com/gorilla/websocket"
 )
 
 type mockUpgrader struct {
@@ -19,7 +19,7 @@ type mockUpgrader struct {
 		Arg2 chan http.Header
 	}
 	UpgradeOutput struct {
-		Ret0 chan server.Conn
+		Ret0 chan *websocket.Conn
 		Ret1 chan error
 	}
 }
@@ -30,11 +30,11 @@ func newMockUpgrader() *mockUpgrader {
 	m.UpgradeInput.Arg0 = make(chan http.ResponseWriter, 100)
 	m.UpgradeInput.Arg1 = make(chan *http.Request, 100)
 	m.UpgradeInput.Arg2 = make(chan http.Header, 100)
-	m.UpgradeOutput.Ret0 = make(chan server.Conn, 100)
+	m.UpgradeOutput.Ret0 = make(chan *websocket.Conn, 100)
 	m.UpgradeOutput.Ret1 = make(chan error, 100)
 	return m
 }
-func (m *mockUpgrader) Upgrade(arg0 http.ResponseWriter, arg1 *http.Request, arg2 http.Header) (server.Conn, error) {
+func (m *mockUpgrader) Upgrade(arg0 http.ResponseWriter, arg1 *http.Request, arg2 http.Header) (*websocket.Conn, error) {
 	m.UpgradeCalled <- true
 	m.UpgradeInput.Arg0 <- arg0
 	m.UpgradeInput.Arg1 <- arg1
@@ -85,44 +85,4 @@ func (m *mockResponseWriter) Write(arg0 []byte) (int, error) {
 func (m *mockResponseWriter) WriteHeader(arg0 int) {
 	m.WriteHeaderCalled <- true
 	m.WriteHeaderInput.Arg0 <- arg0
-}
-
-type mockConn struct {
-	ReadMessageCalled chan bool
-	ReadMessageOutput struct {
-		Ret0 chan int
-		Ret1 chan []byte
-		Ret2 chan error
-	}
-	WriteMessageCalled chan bool
-	WriteMessageInput  struct {
-		Arg0 chan int
-		Arg1 chan []byte
-	}
-	WriteMessageOutput struct {
-		Ret0 chan error
-	}
-}
-
-func newMockConn() *mockConn {
-	m := &mockConn{}
-	m.ReadMessageCalled = make(chan bool, 100)
-	m.ReadMessageOutput.Ret0 = make(chan int, 100)
-	m.ReadMessageOutput.Ret1 = make(chan []byte, 100)
-	m.ReadMessageOutput.Ret2 = make(chan error, 100)
-	m.WriteMessageCalled = make(chan bool, 100)
-	m.WriteMessageInput.Arg0 = make(chan int, 100)
-	m.WriteMessageInput.Arg1 = make(chan []byte, 100)
-	m.WriteMessageOutput.Ret0 = make(chan error, 100)
-	return m
-}
-func (m *mockConn) ReadMessage() (int, []byte, error) {
-	m.ReadMessageCalled <- true
-	return <-m.ReadMessageOutput.Ret0, <-m.ReadMessageOutput.Ret1, <-m.ReadMessageOutput.Ret2
-}
-func (m *mockConn) WriteMessage(arg0 int, arg1 []byte) error {
-	m.WriteMessageCalled <- true
-	m.WriteMessageInput.Arg0 <- arg0
-	m.WriteMessageInput.Arg1 <- arg1
-	return <-m.WriteMessageOutput.Ret0
 }
