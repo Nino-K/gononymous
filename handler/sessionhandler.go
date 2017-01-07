@@ -17,8 +17,12 @@ type Upgrader interface {
 	Upgrade(http.ResponseWriter, *http.Request, http.Header) (*websocket.Conn, error)
 }
 
-var peerIdErr = errors.New("CLIENT_ID header must be provided")
-var sessionIDErr = errors.New("sessionId must be provided")
+const CLIENTID = "CLIENT_ID"
+
+var (
+	peerIdErr    = errors.New("CLIENT_ID header must be provided")
+	sessionIDErr = errors.New("sessionId must be provided")
+)
 
 type SessionHandler struct {
 	SessionManager *server.SessionManager
@@ -33,7 +37,7 @@ func NewSessionHandler(sessionManager *server.SessionManager, upgrader Upgrader)
 }
 
 func (s *SessionHandler) Join(w http.ResponseWriter, r *http.Request) {
-	peerId := r.Header.Get("CLIENT_ID")
+	peerId := r.Header.Get(CLIENTID)
 	if peerId == "" {
 		http.Error(w, peerIdErr.Error(), http.StatusBadRequest)
 		log.Printf("Join PeerId: %s \n", peerIdErr)

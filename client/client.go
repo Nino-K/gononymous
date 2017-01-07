@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,9 +14,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var sessionId = flag.String("sessionid", "sessionID", "The unique id that is used for each session")
+
 func main() {
-	addr := "localhost:9988"
-	u := url.URL{Scheme: "ws", Host: addr, Path: "/sessionHandle"}
+	flag.Parse()
+	addr := "localhost:9797"
+	u := url.URL{Scheme: "ws", Host: addr, Path: *sessionId}
 
 	header := http.Header{}
 	clientID := strconv.FormatInt(time.Now().UnixNano(), 10)
