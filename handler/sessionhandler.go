@@ -43,6 +43,12 @@ func (s *SessionHandler) Join(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Join PeerId: %s \n", peerIdErr)
 		return
 	}
+	sessionId := sessionId(r.URL)
+	if sessionId == "" {
+		http.Error(w, sessionIDErr.Error(), http.StatusBadRequest)
+		log.Printf("Join SessionId: %s \n", sessionIDErr)
+		return
+	}
 	conn, err := s.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -50,12 +56,6 @@ func (s *SessionHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	peer := server.NewPeer(peerId, conn)
-	sessionId := sessionId(r.URL)
-	if sessionId == "" {
-		http.Error(w, sessionIDErr.Error(), http.StatusBadRequest)
-		log.Printf("Join SessionId: %s \n", sessionIDErr)
-		return
-	}
 	newSession := server.Session{
 		Id:   sessionId,
 		Peer: peer,

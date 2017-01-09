@@ -41,7 +41,7 @@ var _ = Describe("SessionHandler", func() {
 			sessionHandler := NewSessionHandler(sm, upgrader)
 
 			testServer := httptest.NewServer(http.HandlerFunc(sessionHandler.Join))
-			resp, err := get(testServer.URL)
+			resp, err := get(testServer.URL + "/sessionId")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
 		})
