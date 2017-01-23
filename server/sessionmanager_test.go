@@ -14,6 +14,7 @@ var _ = Describe("Sessionmanager", func() {
 				NewPeer("id3", nil),
 			}
 			Expect(peerExist(peers, "id2")).To(BeTrue())
+			Expect(peerExist(peers, "potato")).To(BeFalse())
 		})
 	})
 })

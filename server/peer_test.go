@@ -3,7 +3,9 @@ package server
 import (
 	"errors"
 	"io"
+	"sync"
 
+	"github.com/Nino-K/gononymous/server/mock"
 	"github.com/gorilla/websocket"
 
 	. "github.com/onsi/ginkgo"
@@ -13,7 +15,7 @@ import (
 var _ = Describe("Peer", func() {
 	Describe("Listen", func() {
 		It("places the incoming messages into message chan", func() {
-			fakeCon := newMockConn()
+			fakeCon := mock.NewMockConn()
 			fakeCon.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
 			fakeCon.ReadMessageOutput.Ret1 <- []byte("test content")
 			fakeCon.ReadMessageOutput.Ret2 <- nil
@@ -29,7 +31,7 @@ var _ = Describe("Peer", func() {
 
 		Context("error", func() {
 			It("returns when close err received from connection", func() {
-				fakeCon := newMockConn()
+				fakeCon := mock.NewMockConn()
 				fakeCon.ReadMessageOutput.Ret0 <- websocket.CloseMessage
 				fakeCon.ReadMessageOutput.Ret1 <- nil
 
@@ -44,7 +46,7 @@ var _ = Describe("Peer", func() {
 			})
 
 			It("does not ignore the next message if error is not close error", func() {
-				fakeCon := newMockConn()
+				fakeCon := mock.NewMockConn()
 				fakeCon.ReadMessageOutput.Ret0 <- websocket.BinaryMessage
 				fakeCon.ReadMessageOutput.Ret1 <- []byte("test content")
 				fakeCon.ReadMessageOutput.Ret2 <- errors.New("something went wrong")
@@ -59,7 +61,7 @@ var _ = Describe("Peer", func() {
 			})
 
 			It("sends a stop sigal when close error received", func() {
-				fakeCon := newMockConn()
+				fakeCon := mock.NewMockConn()
 				fakeCon.ReadMessageOutput.Ret0 <- websocket.CloseMessage
 				fakeCon.ReadMessageOutput.Ret1 <- nil
 
@@ -78,7 +80,7 @@ var _ = Describe("Peer", func() {
 
 		Describe("Broadcast", func() {
 			It("does not write messages to it's own Conn", func() {
-				fakeCon := newMockConn()
+				fakeCon := mock.NewMockConn()
 				peer := NewPeer("testId", fakeCon)
 
 				go peer.Broadcast()
@@ -87,17 +89,17 @@ var _ = Describe("Peer", func() {
 					content:     []byte("test message"),
 				}
 
-				Eventually(fakeCon.WriteMessageInput.Arg0).ShouldNot(Receive())
-				Eventually(fakeCon.WriteMessageInput.Arg1).ShouldNot(Receive())
+				Consistently(fakeCon.WriteMessageInput.Arg0).ShouldNot(Receive())
+				Consistently(fakeCon.WriteMessageInput.Arg1).ShouldNot(Receive())
 			})
 
 			It("writes messages to all Connected Peers", func() {
-				fakeCon := newMockConn()
+				fakeCon := mock.NewMockConn()
 				peer := NewPeer("testId", fakeCon)
 
 				go peer.Broadcast()
 
-				fakeCon2 := newMockConn()
+				fakeCon2 := mock.NewMockConn()
 				peer2 := NewPeer("testId2", fakeCon2)
 				peer.Connect(peer2)
 
@@ -117,7 +119,7 @@ var _ = Describe("Peer", func() {
 
 			Context("error", func() {
 				It("returns an error when stop signal received", func() {
-					fakeCon := newMockConn()
+					fakeCon := mock.NewMockConn()
 					peer := NewPeer("testId", fakeCon)
 
 					go func() {
@@ -130,13 +132,13 @@ var _ = Describe("Peer", func() {
 				})
 
 				It("removes the peer when WriteMessage returns an error", func() {
-					fakeCon1 := newMockConn()
+					fakeCon1 := mock.NewMockConn()
 					peer1 := NewPeer("testId1", fakeCon1)
 
-					fakeCon2 := newMockConn()
+					fakeCon2 := mock.NewMockConn()
 					peer2 := NewPeer("testId2", fakeCon2)
 
-					fakeCon3 := newMockConn()
+					fakeCon3 := mock.NewMockConn()
 					peer3 := NewPeer("testId3", fakeCon3)
 
 					go peer1.Broadcast()
@@ -162,30 +164,35 @@ var _ = Describe("Peer", func() {
 					Eventually(fakeCon3.WriteMessageCalled).Should(Receive())
 				})
 
-				XIt("returns when error occurred", func() {
-					// TODO: take a look at todo on line 63 in peer.go
-					//this test may no longer make sense
-					fakeCon1 := newMockConn()
-					peer1 := NewPeer("testId1", fakeCon1)
+				It("returns PeerStopErr when peer stops listening", func() {
+					fakeCon := mock.NewMockConn()
+					peer := NewPeer("testId", fakeCon)
 
-					fakeCon2 := newMockConn()
-					fakeCon2.WriteMessageOutput.Ret0 <- errors.New("something bad happend")
+					var err error
+					var wg sync.WaitGroup
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						err = peer.Broadcast()
+					}()
+
+					peer.stop <- struct{}{}
+					wg.Wait()
+					Expect(err).NotTo(BeNil())
+					Expect(err).To(Equal(&PeerStopErr{PeerId: "testId"}))
+				})
+			})
+			Describe("Connect", func() {
+				It("receives a peer", func() {
+					fakeCon1 := mock.NewMockConn()
+					peer1 := NewPeer("testId1", fakeCon1)
+					fakeCon2 := mock.NewMockConn()
 					peer2 := NewPeer("testId2", fakeCon2)
 
-					exit := make(chan struct{})
-					var err error
-					go func() {
-						err = peer1.Broadcast()
-						close(exit)
-					}()
-					peer1.Connect(peer2)
-
-					peer1.msg <- message{
-						messageType: websocket.BinaryMessage,
-						content:     []byte("test message"),
-					}
-					<-exit
-					Expect(err).To(HaveOccurred())
+					go peer1.Connect(peer2)
+					var expectedPeer *Peer
+					Eventually(peer1.connectPeers).Should(Receive(&expectedPeer))
+					Expect(expectedPeer).To(Equal(peer2))
 				})
 			})
 		})

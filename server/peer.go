@@ -15,7 +15,7 @@ func (e *PeerStopErr) Error() string {
 	return fmt.Sprintf("%s - has left", e.PeerId)
 }
 
-//go:generate hel --type Conn --output mock_conn_test.go
+//go:generate hel --type Conn --output mock/conn.go
 
 type Conn interface {
 	ReadMessage() (int, []byte, error)
@@ -48,12 +48,10 @@ func NewPeer(id string, conn Conn) *Peer {
 func (p *Peer) Listen() {
 	for {
 		mt, content, err := p.Conn.ReadMessage()
-		if e, ok := err.(*websocket.CloseError); ok {
-			if e.Code == websocket.CloseAbnormalClosure {
-				fmt.Fprintf(os.Stderr, "Listen is stopped: %s\n", err)
-				p.stop <- struct{}{}
-				return
-			}
+		if _, ok := err.(*websocket.CloseError); ok {
+			fmt.Fprintf(os.Stderr, "Listen is stopped: %s\n", err)
+			p.stop <- struct{}{}
+			return
 		}
 		p.msg <- message{messageType: mt, content: content}
 	}
