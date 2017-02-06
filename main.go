@@ -34,15 +34,15 @@ func main() {
 		syscall.SIGKILL,
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
-
+	serverAddr := fmt.Sprintf("%s:%d", *addr, *port)
 	go func() {
-		err := start()
+		fmt.Printf("gononymous is listening on %s \n", serverAddr)
+		err := start(serverAddr)
 		if err != nil {
 			log.Fatalf("start: %s\n", err)
 			return
 		}
 	}()
-	fmt.Printf("gononymous is listening on %s:%d \n", *addr, *port)
 	for {
 		select {
 		case <-sigChan:
@@ -51,10 +51,10 @@ func main() {
 	}
 }
 
-func start() error {
+func start(addr string) error {
 	upgrader := websocket.Upgrader{}
 	sessonManager := server.NewSessionManager()
 	sessionHandler := handler.NewSessionHandler(sessonManager, &upgrader)
 	http.HandleFunc("/", sessionHandler.Join)
-	return http.ListenAndServe(fmt.Sprintf("%s:%d", *addr, *port), nil)
+	return http.ListenAndServeTLS(addr, "cert/cert.pem", "cert/key.pem", nil)
 }

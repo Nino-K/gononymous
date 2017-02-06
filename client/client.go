@@ -2,30 +2,34 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 var sessionId = flag.String("sessionid", "sessionID", "The unique id that is used for each session")
+var clientId = flag.String("clientId", "clientId", "The unique id that is used to designate client")
+var srvAddr = flag.String("addr", "localhost:9797", "The addrees:port of the server")
 
 func main() {
 	flag.Parse()
-	addr := "localhost:9797"
-	u := url.URL{Scheme: "ws", Host: addr, Path: *sessionId}
 
+	u := url.URL{Scheme: "wss", Host: *srvAddr, Path: *sessionId}
+
+	clientIDSuffix := time.Now().UnixNano()
 	header := http.Header{}
-	clientID := strconv.FormatInt(time.Now().UnixNano(), 10)
-	fmt.Println("clientID", clientID)
-	header.Add("CLIENT_ID", clientID)
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), header)
+	header.Add("CLIENT_ID", fmt.Sprintf("%s-%d", *clientId, clientIDSuffix))
+
+	tlsConfig := &tls.Config{InsecureSkipVerify: true}
+	dialer := websocket.Dialer{TLSClientConfig: tlsConfig}
+	c, _, err := dialer.Dial(u.String(), header)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
@@ -37,15 +41,15 @@ func main() {
 				fmt.Println("read:", err)
 				return
 			}
-			fmt.Printf("recv: %s\n", message)
+			fmt.Println("\n" + string(message))
 		}
 	}()
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print(clientID + ": ")
 	for {
+		fmt.Printf(*clientId + ": ")
 		text, _ := reader.ReadString('\n')
-		err := c.WriteMessage(websocket.TextMessage, []byte(text))
+		err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("[%s]: %s", *clientId, text)))
 		if err != nil {
 			fmt.Println("write:", err)
 			return

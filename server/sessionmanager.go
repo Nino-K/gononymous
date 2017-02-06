@@ -53,6 +53,7 @@ func (s *SessionManager) run() {
 				for i, p := range peers {
 					if p.Id == session.Peer.Id {
 						peers = append(peers[:i], peers[i+1:]...)
+						p.Conn.Close()
 					}
 				}
 				sessions[session.Id] = peers

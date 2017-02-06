@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/websocket"
 	. "github.com/onsi/ginkgo"
@@ -64,37 +66,35 @@ var _ = Describe("Gononymous", func() {
 	})
 
 	Context("http errors", func() {
-		It("returns http 400 error if CLIENT_ID header is not provided", func() {
+		It("returns http 400 error", func() {
 			testPort := testPort()
-			command := exec.Command(gononymousPath, "-port", strconv.Itoa(testPort), "-addr", "localhost")
+			command := exec.Command(gononymousPath, "-port", strconv.Itoa(testPort), "-addr", "127.0.0.1")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
+			// make sure server is up
+			Eventually(connected(testPort, time.Second*2)).Should(Equal(http.StatusSwitchingProtocols))
 
-			Eventually(session.Out).Should(gbytes.Say(fmt.Sprintf("gononymous is listening on localhost:%d", testPort)))
+			By("not providing CLIENT_ID")
 
-			_, resp, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://localhost:%d", testPort), nil)
-			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
+			Eventually(func() string {
+				_, resp, err := dialer().Dial(fmt.Sprintf("wss://127.0.0.1:%d/test", testPort), nil)
+				Expect(err).To(HaveOccurred())
+				// this is due to not reaching to upgrade, and returing prior to that
+				Expect(err.Error()).To(ContainSubstring("bad handshake"))
+				return responseBody(resp.Body)
+			}).Should(ContainSubstring("CLIENT_ID header must be provided"))
 
-			Expect(responseBody(resp.Body)).To(ContainSubstring("CLIENT_ID header must be provided"))
-
-			session.Kill()
-		})
-		It("returns http 400 error if sessionId is not provided", func() {
-			testPort := testPort()
-			command := exec.Command(gononymousPath, "-port", strconv.Itoa(testPort), "-addr", "localhost")
-			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
-			Expect(err).NotTo(HaveOccurred())
-			Eventually(session.Out).Should(gbytes.Say(fmt.Sprintf("gononymous is listening on localhost:%d", testPort)))
+			By("not providing sessionId")
 
 			header := make(http.Header)
 			header.Add("CLIENT_ID", "testClient")
-			_, resp, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://localhost:%d", testPort), header)
-			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
-
-			Expect(responseBody(resp.Body)).To(ContainSubstring("sessionId must be provided"))
-
+			Eventually(func() string {
+				_, resp, err := dialer().Dial(fmt.Sprintf("wss://127.0.0.1:%d/", testPort), header)
+				Expect(err).To(HaveOccurred())
+				// this is due to not reaching to upgrade, and returing prior to that
+				Expect(err.Error()).To(ContainSubstring("bad handshake"))
+				return responseBody(resp.Body)
+			}).Should(ContainSubstring("sessionId must be provided"))
 			session.Kill()
 		})
 	})
@@ -110,7 +110,8 @@ var _ = Describe("Gononymous", func() {
 			session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session.Out).Should(gbytes.Say(fmt.Sprintf("gononymous is listening on localhost:%d", randPort)))
+			// make sure server is up
+			Eventually(connected(randPort, time.Second*2)).Should(Equal(http.StatusSwitchingProtocols))
 		})
 
 		AfterEach(func() {
@@ -118,8 +119,8 @@ var _ = Describe("Gononymous", func() {
 		})
 
 		It("connects multiple clients with the same sessionId", func() {
-			wsClientOne := wsClient(fmt.Sprintf("ws://localhost:%d/testSession", randPort), "client1")
-			wsClientTwo := wsClient(fmt.Sprintf("ws://localhost:%d/testSession", randPort), "client2")
+			wsClientOne := wsClient(fmt.Sprintf("wss://localhost:%d/testSession", randPort), "client1")
+			wsClientTwo := wsClient(fmt.Sprintf("wss://localhost:%d/testSession", randPort), "client2")
 
 			err = wsClientOne.WriteMessage(websocket.TextMessage, []byte("yolo"))
 			Expect(err).ToNot(HaveOccurred())
@@ -132,10 +133,32 @@ var _ = Describe("Gononymous", func() {
 	})
 })
 
+func connected(testPort int, wait time.Duration) int {
+	timer := time.NewTimer(wait)
+	<-timer.C
+
+	header := make(http.Header)
+	header.Add("CLIENT_ID", "testClient")
+	_, resp, err := dialer().Dial(fmt.Sprintf("wss://127.0.0.1:%d/testSession", testPort), header)
+	Expect(err).ToNot(HaveOccurred())
+	return resp.StatusCode
+}
+
+func dialer() *websocket.Dialer {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	dialer := websocket.Dialer{
+		TLSClientConfig: tlsConfig,
+	}
+	return &dialer
+}
+
 func wsClient(url, clientId string) *websocket.Conn {
 	header := make(http.Header)
 	header.Add("CLIENT_ID", clientId)
-	wsClient, _, err := websocket.DefaultDialer.Dial(url, header)
+	dialer := dialer()
+	wsClient, _, err := dialer.Dial(url, header)
 	Expect(err).ToNot(HaveOccurred())
 	return wsClient
 }

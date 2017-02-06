@@ -75,6 +75,22 @@ var _ = Describe("Peer", func() {
 				Consistently(peer.msg).ShouldNot(Receive())
 				Eventually(peer.stop).Should(Receive())
 			})
+			It("closes it's own connection when close error received", func() {
+				fakeCon := mock.NewMockConn()
+				fakeCon.ReadMessageOutput.Ret0 <- websocket.CloseMessage
+				fakeCon.ReadMessageOutput.Ret1 <- nil
+
+				closeErr := &websocket.CloseError{
+					Code: websocket.CloseAbnormalClosure,
+					Text: io.ErrUnexpectedEOF.Error(),
+				}
+				fakeCon.ReadMessageOutput.Ret2 <- closeErr
+				peer := NewPeer("testId", fakeCon)
+				go peer.Listen()
+				Consistently(peer.msg).ShouldNot(Receive())
+				Eventually(peer.stop).Should(Receive())
+				Eventually(fakeCon.CloseCalled).Should(Receive())
+			})
 
 		})
 

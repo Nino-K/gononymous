@@ -20,6 +20,7 @@ func (e *PeerStopErr) Error() string {
 type Conn interface {
 	ReadMessage() (int, []byte, error)
 	WriteMessage(int, []byte) error
+	Close() error
 }
 
 type message struct {
@@ -51,6 +52,7 @@ func (p *Peer) Listen() {
 		if _, ok := err.(*websocket.CloseError); ok {
 			fmt.Fprintf(os.Stderr, "Listen is stopped: %s\n", err)
 			p.stop <- struct{}{}
+			p.Conn.Close()
 			return
 		}
 		p.msg <- message{messageType: mt, content: content}
@@ -80,4 +82,8 @@ func (p *Peer) Broadcast() error {
 
 func (p *Peer) Connect(peer *Peer) {
 	p.connectPeers <- peer
+}
+
+func (p *Peer) Close() error {
+	return p.Conn.Close()
 }

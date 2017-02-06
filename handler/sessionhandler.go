@@ -68,6 +68,7 @@ func (s *SessionHandler) Join(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 	s.SessionManager.Unregister(newSession)
+	conn.Close()
 }
 
 func sessionId(url *url.URL) string {
