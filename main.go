@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -53,16 +54,27 @@ func main() {
 }
 
 func start(srvAddr string) error {
-	out := "out"
-	certGenerator := cert.Generator{
-		OutPath: out,
-	}
-	if _, _, err := certGenerator.GenerateSrvCertKey(); err != nil {
-		return err
-	}
 	upgrader := websocket.Upgrader{}
 	sessonManager := server.NewSessionManager()
 	sessionHandler := handler.NewSessionHandler(sessonManager, &upgrader)
+
+	certPEM, keyPEM, err := cert.GenerateSrvCertKey()
+	if err != nil {
+		return err
+	}
+	serverTLSCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return err
+	}
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{serverTLSCert}}
+	server := &http.Server{
+		Addr:      srvAddr,
+		TLSConfig: tlsConfig,
+	}
+	ln, err := tls.Listen("tcp", srvAddr, tlsConfig)
+	if err != nil {
+		return err
+	}
 	http.HandleFunc("/", sessionHandler.Join)
-	return http.ListenAndServeTLS(srvAddr, out+"/cert.pem", out+"/key.pem", nil)
+	return server.Serve(ln)
 }

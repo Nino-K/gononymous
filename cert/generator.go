@@ -7,19 +7,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"log"
 	"math/big"
 	"net"
-	"os"
 	"time"
 )
 
-type Generator struct {
-	OutPath string
-}
-
-func (g *Generator) GenerateSrvCertKey() ([]byte, []byte, error) {
+func GenerateSrvCertKey() ([]byte, []byte, error) {
 	srvKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		log.Fatalf("generating server key: %v", err)
@@ -40,32 +34,32 @@ func (g *Generator) GenerateSrvCertKey() ([]byte, []byte, error) {
 	key := pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(srvKey)}
 	keyPEM := pem.EncodeToMemory(&key)
 
-	err = g.outWriter(certPEM, "cert.pem")
-	if err != nil {
-		return nil, nil, err
-	}
-	err = g.outWriter(keyPEM, "key.pem")
-	if err != nil {
-		return nil, nil, err
-	}
+	//	err = g.outWriter(certPEM, "cert.pem")
+	//	if err != nil {
+	//		return nil, nil, err
+	//	}
+	//	err = g.outWriter(keyPEM, "key.pem")
+	//	if err != nil {
+	//		return nil, nil, err
+	//	}
 
 	return certPEM, keyPEM, nil
 }
 
-func (g *Generator) outWriter(encodedPEM []byte, name string) error {
-	path := g.OutPath + "/" + name
-	f, err := os.Create(path)
-	if err != nil {
-		fmt.Println(err)
-		return errors.New(fmt.Sprintf("OutWriter creating file %s: %v", path, err))
-	}
-	defer f.Close()
-	_, err = f.Write(encodedPEM)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+//func (g *Generator) outWriter(encodedPEM []byte, name string) error {
+//	path := g.OutPath + "/" + name
+//	f, err := os.Create(path)
+//	if err != nil {
+//		fmt.Println(err)
+//		return errors.New(fmt.Sprintf("OutWriter creating file %s: %v", path, err))
+//	}
+//	defer f.Close()
+//	_, err = f.Write(encodedPEM)
+//	if err != nil {
+//		return err
+//	}
+//	return nil
+//}
 
 func certTemplate() (*x509.Certificate, error) {
 	// generate a random serial number (a real cert authority would have some logic behind this)
