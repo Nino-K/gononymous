@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/Nino-K/gononymous/cert"
 	"github.com/Nino-K/gononymous/handler"
 	"github.com/Nino-K/gononymous/server"
 	"github.com/gorilla/websocket"
@@ -51,10 +53,18 @@ func main() {
 	}
 }
 
-func start(addr string) error {
+func start(srvAddr string) error {
+	out := "out"
+	certGenerator := cert.Generator{
+		Addrs:   []net.IP{net.ParseIP(*addr)},
+		OutPath: out,
+	}
+	if _, _, err := certGenerator.GenerateSrvCertKey(); err != nil {
+		return err
+	}
 	upgrader := websocket.Upgrader{}
 	sessonManager := server.NewSessionManager()
 	sessionHandler := handler.NewSessionHandler(sessonManager, &upgrader)
 	http.HandleFunc("/", sessionHandler.Join)
-	return http.ListenAndServeTLS(addr, "cert/cert.pem", "cert/key.pem", nil)
+	return http.ListenAndServeTLS(srvAddr, out+"/cert.pem", out+"/key.pem", nil)
 }

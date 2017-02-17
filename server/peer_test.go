@@ -161,7 +161,7 @@ var _ = Describe("Peer", func() {
 					peer1.Connect(peer2)
 					peer1.Connect(peer3)
 
-					fakeCon2.WriteMessageOutput.Ret0 <- errors.New("something bad happend")
+					fakeCon2.WriteMessageOutput.Ret0 <- errors.New("something bad happened")
 					peer1.msg <- message{
 						messageType: websocket.BinaryMessage,
 						content:     []byte("test message"),
