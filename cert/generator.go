@@ -16,7 +16,6 @@ import (
 )
 
 type Generator struct {
-	Addrs   []net.IP
 	OutPath string
 }
 
@@ -32,7 +31,7 @@ func (g *Generator) GenerateSrvCertKey() ([]byte, []byte, error) {
 	//serverCertTemplate.IsCA = true
 	serverCertTemplate.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
 	serverCertTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
-	serverCertTemplate.IPAddresses = g.Addrs
+	serverCertTemplate.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
 
 	certPEM, err := createCert(serverCertTemplate, serverCertTemplate, &srvKey.PublicKey, srvKey)
 	if err != nil {

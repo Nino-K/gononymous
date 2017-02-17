@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -56,7 +55,6 @@ func main() {
 func start(srvAddr string) error {
 	out := "out"
 	certGenerator := cert.Generator{
-		Addrs:   []net.IP{net.ParseIP(*addr)},
 		OutPath: out,
 	}
 	if _, _, err := certGenerator.GenerateSrvCertKey(); err != nil {
